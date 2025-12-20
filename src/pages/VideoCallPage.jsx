@@ -98,7 +98,14 @@ const startCall = useCallback(async () => {
   setErrorMsg("");
   setMeetingState("joining-meeting");
 
-  const call = DailyIframe.createCallObject();
+  const call = DailyIframe.createCallObject({
+     videoSource: true,
+  audioSource: true,
+  dailyConfig: {
+    // Prefer quality over bandwidth savings
+    preferredVideoCodec: "vp8",
+  },
+  });
   callRef.current = call;
 
   // ✅ helper: refresh + set meeting state
@@ -128,6 +135,29 @@ const startCall = useCallback(async () => {
 
   try {
     await call.join({ url: roomUrl });
+    
+    await call.setBandwidth({
+  video: 2500, // kbps (try 1500–2500)
+});
+
+
+    await call.setLocalVideo(true);
+
+await call.setLocalVideoTrackConstraints({
+  width: { ideal: 1280 },
+  height: { ideal: 720 },
+  frameRate: { ideal: 30 },
+});
+
+call.updateReceiveSettings({
+  base: {
+    receiveSettings: {
+      video: {
+        enabled: true,
+      },
+    },
+  },
+});
 
     // ✅ critical: in case the other person was already inside
     refreshParticipants();
