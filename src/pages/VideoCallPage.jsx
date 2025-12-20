@@ -13,6 +13,7 @@ export default function VideoCallPage({ roomUrl }) {
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
 
   // Meeting state: "new" | "joining-meeting" | "joined-meeting" | "left-meeting" | "error"
   const [meetingState, setMeetingState] = useState("new");
@@ -137,11 +138,11 @@ const startCall = useCallback(async () => {
     await call.join({ url: roomUrl });
     
     await call.setBandwidth({
-  video: 2500, // kbps (try 1500–2500)
-});
+    video: 2500, // kbps (try 1500–2500)
+  });
 
 
-    await call.setLocalVideo(true);
+  await call.setLocalVideo(true);
 
 call.updateReceiveSettings({
   base: {
@@ -196,8 +197,19 @@ call.updateReceiveSettings({
       remoteVideoRef.current.srcObject = remoteTrack ? new MediaStream([remoteTrack]) : null;
     }
 
+      // ✅ Remote audio (NEW)
+  const remoteAudioTrack = remote?.tracks?.audio?.persistentTrack;
+  if (remoteAudioRef.current) {
+    remoteAudioRef.current.srcObject = remoteAudioTrack ? new MediaStream([remoteAudioTrack]) : null;
+    remoteAudioRef.current.muted = false;
+    remoteAudioRef.current.volume = 1;
+  }
+
     console.log("remote video state:", remote?.tracks?.video);
     console.log("remote persistentTrack:", remote?.tracks?.video?.persistentTrack);
+
+    console.log("LOCAL audio:", local?.tracks?.audio);
+    console.log("REMOTE audio:", remote?.tracks?.audio);
   }, [local, remote]);
 
   // Toggle camera/mic using updateLocalParticipant
@@ -314,6 +326,8 @@ call.updateReceiveSettings({
           Tip: For production, create rooms & tokens on your backend (don’t store Daily API keys in React).
         </div>
       </footer>
+
+      <audio ref={remoteAudioRef} autoPlay playsInline />
     </div>
   );
 }
