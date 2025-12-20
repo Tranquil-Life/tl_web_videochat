@@ -21,3 +21,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+tl_ssh_key
+tl_ssh_key.pub
