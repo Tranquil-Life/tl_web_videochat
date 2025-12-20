@@ -143,12 +143,6 @@ const startCall = useCallback(async () => {
 
     await call.setLocalVideo(true);
 
-await call.setLocalVideoTrackConstraints({
-  width: { ideal: 1280 },
-  height: { ideal: 720 },
-  frameRate: { ideal: 30 },
-});
-
 call.updateReceiveSettings({
   base: {
     receiveSettings: {
