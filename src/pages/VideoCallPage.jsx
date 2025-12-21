@@ -327,12 +327,7 @@ const destroyCallObject = useCallback(async () => {
         </section>
       </main>
 
-      <footer style={styles.footer}>
-        <div style={styles.small}>
-          Tip: For production, create rooms & tokens on your backend (don’t store Daily API keys in React).
-        </div>
-      </footer>
-
+      
       <audio ref={remoteAudioRef} autoPlay playsInline />
     </div>
   );
