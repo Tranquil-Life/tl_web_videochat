@@ -7,6 +7,9 @@ import VideoCallPage from "./pages/VideoCallPage";
 function App() {
   const params = new URLSearchParams(window.location.search);
   const room = params.get("room");
+  const token = params.get("token");
+  const userName = params.get("userName");
+
 
   const roomUrl = room
     ? `https://skpnation.daily.co/${room}`
@@ -15,7 +18,7 @@ function App() {
   return (
     <>
       {roomUrl ? (
-        <VideoCallPage roomUrl={roomUrl} />
+        <VideoCallPage roomUrl={roomUrl} token={token} userName={userName}  />
       ) : (
         <div style={{ color: "black", padding: 20 }}>
           ❌ No room provided in URL

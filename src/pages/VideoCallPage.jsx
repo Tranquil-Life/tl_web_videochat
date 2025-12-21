@@ -8,7 +8,7 @@ import DailyIframe from "@daily-co/daily-js";
  * - roomUrl: string (e.g. "https://your-team.daily.co/room-name")
  *   IMPORTANT: Create rooms from your backend (don’t expose API keys in client).
  */
-export default function VideoCallPage({ roomUrl }) {
+export default function VideoCallPage({ roomUrl, token, userName }) {
   const callRef = useRef(null);
 
   const localVideoRef = useRef(null);
@@ -65,7 +65,7 @@ const destroyCallObject = useCallback(async () => {
   const p = call.participants();
   console.log("participants:", p);
 
-  // ✅ IMPORTANT: clone so React sees a new reference and re-renders
+  // React sees a new reference and re-renders
   setParticipants({ ...p });
   }, []);
 
@@ -90,82 +90,88 @@ const destroyCallObject = useCallback(async () => {
     [destroyCallObject]
   );
 
-const startCall = useCallback(async () => {
-  if (!roomUrl) {
-    setErrorMsg("Missing roomUrl.");
-    return;
-  }
+  const startCall = useCallback(async () => {
+    if (!roomUrl) {
+      setErrorMsg("Missing roomUrl.");
+      return;
+    }
 
-  setErrorMsg("");
-  setMeetingState("joining-meeting");
+    setErrorMsg("");
+    setMeetingState("joining-meeting");
 
-  const call = DailyIframe.createCallObject({
-     videoSource: true,
-  audioSource: true,
-  dailyConfig: {
-    // Prefer quality over bandwidth savings
-    preferredVideoCodec: "vp8",
-  },
-  });
-  callRef.current = call;
-
-  // ✅ helper: refresh + set meeting state
-  const onJoined = (evt) => {
-    refreshParticipants();       // ✅ critical
-    handleMeetingState(evt);
-  };
-
-  // Meeting events
-  call.on("joined-meeting", onJoined);          // ✅ swapped to onJoined
-  call.on("left-meeting", handleMeetingState);
-
-  call.on("error", (e) => {
-    console.error("Daily error event:", e);
-    setErrorMsg(e?.errorMsg || "Daily error.");
-    setMeetingState("error");
-  });
-
-  // Participant events
-  call.on("participant-joined", refreshParticipants);
-  call.on("participant-left", refreshParticipants);
-  call.on("participant-updated", refreshParticipants);
-
-  // ✅ Track events (often needed for remote video to appear)
-  call.on("track-started", refreshParticipants);
-  call.on("track-stopped", refreshParticipants);
-
-  try {
-    await call.join({ url: roomUrl });
-    
-    await call.setBandwidth({
-    video: 2500, // kbps (try 1500–2500)
-  });
-
-
-  await call.setLocalVideo(true);
-
-call.updateReceiveSettings({
-  base: {
-    receiveSettings: {
-      video: {
-        enabled: true,
+    const call = DailyIframe.createCallObject({
+      videoSource: true,
+      audioSource: true,
+      dailyConfig: {
+        // Prefer quality over bandwidth savings
+        preferredVideoCodec: "vp8",
       },
-    },
-  },
-});
+    });
 
-    // ✅ critical: in case the other person was already inside
-    refreshParticipants();
+    callRef.current = call;
 
-    // ✅ optional: sometimes a tiny delay helps if tracks arrive right after join
-    setTimeout(refreshParticipants, 250);
-  } catch (e) {
-    console.error("join() failed:", e);
-    setErrorMsg(e?.message || "Join failed.");
-    setMeetingState("error");
-    await destroyCallObject();
-  }
-}, [roomUrl, handleMeetingState, refreshParticipants, destroyCallObject]);
+    // helper: refresh + set meeting state
+    const onJoined = (evt) => {
+      refreshParticipants();       // critical
+      handleMeetingState(evt);
+    };
+
+    // Meeting events
+    call.on("joined-meeting", onJoined);          // ✅ swapped to onJoined
+    call.on("left-meeting", handleMeetingState);
+
+    call.on("error", (e) => {
+      console.error("Daily error event:", e);
+      setErrorMsg(e?.errorMsg || "Daily error.");
+      setMeetingState("error");
+    });
+
+    // Participant events
+    call.on("participant-joined", refreshParticipants);
+    call.on("participant-left", refreshParticipants);
+    call.on("participant-updated", refreshParticipants);
+
+    // ✅ Track events (often needed for remote video to appear)
+    call.on("track-started", refreshParticipants);
+    call.on("track-stopped", refreshParticipants);
+
+    try {
+
+      await call.join({ 
+        url: roomUrl,
+        token,
+        userName: userName
+      });
+    
+      await call.setBandwidth({
+      video: 2500, // kbps (try 1500–2500)
+      });
+
+
+      await call.setLocalVideo(true);
+
+      call.updateReceiveSettings({
+        base: {
+          receiveSettings: {
+            video: {
+              enabled: true,
+            },
+          },
+        },
+      });
+
+      // ✅ critical: in case the other person was already inside
+      refreshParticipants();
+
+      // ✅ optional: sometimes a tiny delay helps if tracks arrive right after join
+      setTimeout(refreshParticipants, 250);
+    } catch (e) {
+      console.error("join() failed:", e);
+      setErrorMsg(e?.message || "Join failed.");
+      setMeetingState("error");
+      await destroyCallObject();
+    }
+  }, [roomUrl, token, userName, handleMeetingState, refreshParticipants, destroyCallObject]);
 
 
   const leaveCall = useCallback(async () => {
@@ -298,7 +304,7 @@ call.updateReceiveSettings({
 
       <main style={styles.grid}>
         <section style={styles.tile}>
-          <div style={styles.label}>Remote</div>
+          <div style={styles.label}>{remote?.user_name || remote?.userId || "Remote"}</div>
           <video
             ref={remoteVideoRef}
             autoPlay
@@ -309,7 +315,7 @@ call.updateReceiveSettings({
         </section>
 
         <section style={styles.tile}>
-          <div style={styles.label}>You</div>
+          <div style={styles.label}>{local?.user_name || "You"}</div>
           <video
             ref={localVideoRef}
             autoPlay
