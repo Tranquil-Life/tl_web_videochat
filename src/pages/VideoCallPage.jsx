@@ -1,88 +1,70 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import DailyIframe from "@daily-co/daily-js";
+import { FaMicrophone, FaVideo, FaPhone, FaSlash } from "react-icons/fa";
 
-/**
- * Minimal 1–1 Daily.co call page using the Daily Call Object API.
- *
- * Props:
- * - roomUrl: string (e.g. "https://your-team.daily.co/room-name")
- *   IMPORTANT: Create rooms from your backend (don’t expose API keys in client).
- */
 export default function VideoCallPage({ roomUrl, token, userName }) {
   const callRef = useRef(null);
-
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const remoteAudioRef = useRef(null);
 
-  // Meeting state: "new" | "joining-meeting" | "joined-meeting" | "left-meeting" | "error"
-  const [meetingState, setMeetingState] = useState("new");
-  const [participants, setParticipants] = useState({}); // from callObject.participants()
+  const listenersRef = useRef({});
+  const hasStartedRef = useRef(false);
+  const isLocalMainRef = useRef(false);
+
+  const [participants, setParticipants] = useState({});
   const [errorMsg, setErrorMsg] = useState("");
-
-  const [camOn, setCamOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
+  const [camOn, setCamOn] = useState(true);
+  const [isLocalMain, setIsLocalMain] = useState(false); // For labels/icons
+  const [dragPos, setDragPos] = useState({ x: 20, y: 20 });
 
-  const isInCall = meetingState === "joined-meeting";
-  const isJoining = meetingState === "joining-meeting";
-  const canJoin = meetingState === "new" || meetingState === "left-meeting" || meetingState === "error";
-  const canLeave = meetingState === "joined-meeting" || meetingState === "error";
-
-  // Identify the remote participant (for strict 1–1 UI)
   const { local, remote } = useMemo(() => {
     const p = participants || {};
-    const localP = p.local || null;
-    const remoteP = Object.values(p).find((x) => x && !x.local) || null;
-    return { local: localP, remote: remoteP };
+    return {
+      local: p.local || null,
+      remote: Object.values(p).find((x) => x && !x.local) || null,
+    };
   }, [participants]);
 
-const destroyCallObject = useCallback(async () => {
-  const call = callRef.current;
-  if (!call) return;
+  const destroyCallObject = useCallback(async () => {
+    const call = callRef.current;
+    if (!call) return;
 
-  try {
-    call.off("joined-meeting");
-    call.off("left-meeting");
-    call.off("error");
-    call.off("participant-joined");
-    call.off("participant-left");
-    call.off("participant-updated");
-    call.off("track-started");   // ✅ add
-    call.off("track-stopped");   // ✅ add
-  } catch (_) {}
+    Object.entries(listenersRef.current).forEach(([ev, fn]) => {
+      if (fn) call.off(ev, fn);
+    });
 
-  try {
-    await call.destroy();
-  } catch (_) {}
-
-  callRef.current = null;
-}, []);
-
-  const refreshParticipants = useCallback(() => {
-  const call = callRef.current;
-  if (!call) return;
-
-  const p = call.participants();
-  console.log("participants:", p);
-
-  // React sees a new reference and re-renders
-  setParticipants({ ...p });
+    try {
+      await call.destroy();
+    } catch (_) {}
+    callRef.current = null;
   }, []);
 
+  const refreshParticipants = useCallback(() => {
+    const call = callRef.current;
+    if (!call) return;
+    setParticipants({ ...call.participants() });
+  }, []);
 
   const handleMeetingState = useCallback(
     async (evt) => {
       const call = callRef.current;
       if (!call) return;
-
       const state = call.meetingState();
-      setMeetingState(state);
 
       if (evt?.errorMsg) setErrorMsg(String(evt.errorMsg));
-      if (state === "error") setErrorMsg("Failed to join call. Check room URL / network / permissions.");
-
+      if (state === "error")
+        setErrorMsg(
+          "Failed to join call. Check room URL / network / permissions."
+        );
       if (state === "left-meeting") {
-        // We destroy after leaving so next join is clean (pattern used in Daily tutorial)
         await destroyCallObject();
         setParticipants({});
       }
@@ -91,324 +73,330 @@ const destroyCallObject = useCallback(async () => {
   );
 
   const startCall = useCallback(async () => {
-    if (!roomUrl) {
-      setErrorMsg("Missing roomUrl.");
-      return;
-    }
-
-    setErrorMsg("");
-    setMeetingState("joining-meeting");
+    if (!roomUrl || callRef.current) return;
 
     const call = DailyIframe.createCallObject({
       videoSource: true,
       audioSource: true,
-      dailyConfig: {
-        // Prefer quality over bandwidth savings
-        preferredVideoCodec: "vp8",
-      },
+      dailyConfig: { preferredVideoCodec: "vp8" },
     });
-
     callRef.current = call;
 
-    // helper: refresh + set meeting state
     const onJoined = (evt) => {
-      refreshParticipants();       // critical
+      refreshParticipants();
       handleMeetingState(evt);
     };
+    const onParticipantUpdate = refreshParticipants;
+    const onError = (e) => {
+      console.error(e);
+      setErrorMsg(e?.errorMsg || "Daily error");
+    };
 
-    // Meeting events
-    call.on("joined-meeting", onJoined);          // ✅ swapped to onJoined
-    call.on("left-meeting", handleMeetingState);
+    listenersRef.current = {
+      "joined-meeting": onJoined,
+      "left-meeting": handleMeetingState,
+      "participant-joined": onParticipantUpdate,
+      "participant-left": onParticipantUpdate,
+      "participant-updated": onParticipantUpdate,
+      "track-started": onParticipantUpdate,
+      "track-stopped": onParticipantUpdate,
+      error: onError,
+    };
 
-    call.on("error", (e) => {
-      console.error("Daily error event:", e);
-      setErrorMsg(e?.errorMsg || "Daily error.");
-      setMeetingState("error");
-    });
-
-    // Participant events
-    call.on("participant-joined", refreshParticipants);
-    call.on("participant-left", refreshParticipants);
-    call.on("participant-updated", refreshParticipants);
-
-    // ✅ Track events (often needed for remote video to appear)
-    call.on("track-started", refreshParticipants);
-    call.on("track-stopped", refreshParticipants);
+    Object.entries(listenersRef.current).forEach(([ev, fn]) => call.on(ev, fn));
 
     try {
+      const joinParams = { url: roomUrl, userName };
+      if (token && typeof token === "string") joinParams.token = token;
 
-      await call.join({ 
-        url: roomUrl,
-        token,
-        userName: userName
-      });
-    
-      await call.setBandwidth({
-      video: 2500, // kbps (try 1500–2500)
-      });
-
-
+      await call.join(joinParams);
       await call.setLocalVideo(true);
-
+      await call.setLocalAudio(true);
+      await call.setBandwidth({ video: 2500 });
       call.updateReceiveSettings({
-        base: {
-          receiveSettings: {
-            video: {
-              enabled: true,
-            },
-          },
-        },
+        base: { receiveSettings: { video: { enabled: true } } },
       });
 
-      // ✅ critical: in case the other person was already inside
       refreshParticipants();
-
-      // ✅ optional: sometimes a tiny delay helps if tracks arrive right after join
       setTimeout(refreshParticipants, 250);
     } catch (e) {
-      console.error("join() failed:", e);
-      setErrorMsg(e?.message || "Join failed.");
-      setMeetingState("error");
+      console.error("Join failed:", e);
+      setErrorMsg(e?.message || "Join failed");
       await destroyCallObject();
     }
-  }, [roomUrl, token, userName, handleMeetingState, refreshParticipants, destroyCallObject]);
-
+  }, [
+    roomUrl,
+    token,
+    userName,
+    handleMeetingState,
+    refreshParticipants,
+    destroyCallObject,
+  ]);
 
   const leaveCall = useCallback(async () => {
     const call = callRef.current;
     if (!call) return;
-
-    setErrorMsg("");
     try {
-      await call.leave(); // will trigger left-meeting event
-    } catch (e) {
-      console.error("leave() failed:", e);
-      setErrorMsg(e?.message || "Leave failed.");
-      setMeetingState("error");
-      await destroyCallObject();
-    }
-  }, [destroyCallObject]);
-
-  // Attach tracks to <video> elements for a fully custom UI
-  useEffect(() => {
-    // Local
-    const localTrack = local?.tracks?.video?.persistentTrack;
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localTrack ? new MediaStream([localTrack]) : null;
-    }
-
-    // Remote
-    const remoteTrack = remote?.tracks?.video?.persistentTrack;
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteTrack ? new MediaStream([remoteTrack]) : null;
-    }
-
-      // ✅ Remote audio (NEW)
-  const remoteAudioTrack = remote?.tracks?.audio?.persistentTrack;
-  if (remoteAudioRef.current) {
-    remoteAudioRef.current.srcObject = remoteAudioTrack ? new MediaStream([remoteAudioTrack]) : null;
-    remoteAudioRef.current.muted = false;
-    remoteAudioRef.current.volume = 1;
-  }
-
-    console.log("remote video state:", remote?.tracks?.video);
-    console.log("remote persistentTrack:", remote?.tracks?.video?.persistentTrack);
-
-    console.log("LOCAL audio:", local?.tracks?.audio);
-    console.log("REMOTE audio:", remote?.tracks?.audio);
-  }, [local, remote]);
-
-  // Toggle camera/mic using updateLocalParticipant
-  const toggleCam = useCallback(async () => {
-    const call = callRef.current;
-    if (!call) return;
-
-    const next = !camOn;
-    setCamOn(next);
-
-    try {
-      // "video": true/false turns camera on/off for the local participant
-      await call.setLocalVideo(next);
+      await call.leave();
     } catch (e) {
       console.error(e);
+      setErrorMsg(e?.message || "Leave failed");
+    }
+    await destroyCallObject();
+  }, [destroyCallObject]);
+
+  const toggleCam = useCallback(async () => {
+    const next = !camOn;
+    setCamOn(next);
+    try {
+      await callRef.current?.setLocalVideo(next);
+    } catch (e) {
       setErrorMsg("Could not toggle camera.");
     }
   }, [camOn]);
 
   const toggleMic = useCallback(async () => {
-    const call = callRef.current;
-    if (!call) return;
-
     const next = !micOn;
     setMicOn(next);
-
     try {
-      await call.setLocalAudio(next);
+      await callRef.current?.setLocalAudio(next);
     } catch (e) {
-      console.error(e);
       setErrorMsg("Could not toggle mic.");
     }
   }, [micOn]);
 
-  // Cleanup on unmount
+  // Prevent duplicate instance in StrictMode
   useEffect(() => {
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
+    startCall();
     return () => {
-      // leave & destroy if component unmounts
-      (async () => {
-        try {
-          await callRef.current?.leave();
-        } catch (_) {}
-        await destroyCallObject();
-      })();
+      hasStartedRef.current = false;
+      destroyCallObject();
     };
-  }, [destroyCallObject]);
+  }, [startCall, destroyCallObject]);
+
+  // Video element updates
+  useEffect(() => {
+    if (localVideoRef.current)
+      localVideoRef.current.srcObject = local?.tracks?.video?.persistentTrack
+        ? new MediaStream([local.tracks.video.persistentTrack])
+        : null;
+    if (remoteVideoRef.current)
+      remoteVideoRef.current.srcObject = remote?.tracks?.video?.persistentTrack
+        ? new MediaStream([remote.tracks.video.persistentTrack])
+        : null;
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = remote?.tracks?.audio?.persistentTrack
+        ? new MediaStream([remote.tracks.audio.persistentTrack])
+        : null;
+      remoteAudioRef.current.muted = false;
+      remoteAudioRef.current.volume = 1;
+    }
+  }, [local, remote]);
+
+  const handleDrag = (clientX, clientY) => {
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight;
+    const smallW = Math.min(Math.max(120, screenW * 0.22), 160);
+    const smallH = (smallW * 3) / 4;
+    const x = Math.min(Math.max(clientX - smallW / 2, 8), screenW - smallW - 8);
+    const y = Math.min(Math.max(clientY - smallH / 2, 8), screenH - smallH - 8);
+    setDragPos({ x, y });
+  };
+
+  // ✅ INSTANT SWAP: swap video srcObjects immediately
+  const swapVideos = () => {
+    const localVideo = localVideoRef.current;
+    const remoteVideo = remoteVideoRef.current;
+    if (!localVideo || !remoteVideo) return;
+
+    // Swap srcObjects instantly
+    const temp = localVideo.srcObject;
+    localVideo.srcObject = remoteVideo.srcObject;
+    remoteVideo.srcObject = temp;
+
+    // Update state for labels/icons
+    isLocalMainRef.current = !isLocalMainRef.current;
+    setIsLocalMain(isLocalMainRef.current);
+  };
+
+  useEffect(() => {
+    const handleResize = () => {
+      const screenW = window.innerWidth;
+      const screenH = window.innerHeight;
+      const smallW = Math.min(Math.max(120, screenW * 0.22), 160);
+      const smallH = (smallW * 3) / 4;
+      setDragPos((prev) => ({
+        x: Math.min(prev.x, screenW - smallW - 8),
+        y: Math.min(prev.y, screenH - smallH - 8),
+      }));
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   return (
     <div style={styles.page}>
-      <header style={styles.header}>
-        <div>
-          <div style={styles.title}>Video Session</div>
-          <div style={styles.subTitle}>
-            State: <b>{meetingState}</b>
-          </div>
+      <main style={styles.videoContainer}>
+        <video
+          ref={isLocalMain ? localVideoRef : remoteVideoRef}
+          autoPlay
+          playsInline
+          muted={isLocalMain}
+          style={styles.mainVideo}
+        />
+
+        <div
+          style={{
+            ...styles.smallVideoWrapper,
+            top: dragPos.y,
+            left: dragPos.x,
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            const move = (ev) => handleDrag(ev.clientX, ev.clientY);
+            const stop = () => {
+              window.removeEventListener("mousemove", move);
+              window.removeEventListener("mouseup", stop);
+            };
+            window.addEventListener("mousemove", move);
+            window.addEventListener("mouseup", stop);
+          }}
+          onTouchStart={(e) => {
+            const touchMove = (ev) =>
+              handleDrag(ev.touches[0].clientX, ev.touches[0].clientY);
+            const stop = () => {
+              window.removeEventListener("touchmove", touchMove);
+              window.removeEventListener("touchend", stop);
+            };
+            window.addEventListener("touchmove", touchMove);
+            window.addEventListener("touchend", stop);
+          }}
+          onDoubleClick={swapVideos}
+        >
+          <video
+            ref={isLocalMain ? remoteVideoRef : localVideoRef}
+            autoPlay
+            playsInline
+            muted={!isLocalMain}
+            style={styles.smallVideo}
+          />
+          <div style={styles.smallLabel}>{isLocalMain ? "Remote" : "You"}</div>
         </div>
 
-        <div style={styles.actions}>
-          <button
-            style={{ ...styles.btn, ...(canJoin ? {} : styles.btnDisabled) }}
-            disabled={!canJoin || isJoining}
-            onClick={startCall}
-          >
-            {isJoining ? "Joining..." : "Join"}
+        <div style={styles.controls}>
+          <button onClick={toggleMic} style={styles.controlBtn}>
+            <div style={styles.iconBox}>
+              <FaMicrophone /> {!micOn && <FaSlash style={styles.slashIcon} />}
+            </div>
           </button>
 
           <button
-            style={{ ...styles.btn, ...(canLeave ? {} : styles.btnDisabled) }}
-            disabled={!canLeave}
             onClick={leaveCall}
+            style={{ ...styles.controlBtn, background: "red" }}
           >
-            Leave
+            <FaPhone />
           </button>
 
-          <button style={{ ...styles.btn }} disabled={!isInCall} onClick={toggleMic}>
-            {micOn ? "Mute" : "Unmute"}
-          </button>
-
-          <button style={{ ...styles.btn }} disabled={!isInCall} onClick={toggleCam}>
-            {camOn ? "Camera off" : "Camera on"}
+          <button onClick={toggleCam} style={styles.controlBtn}>
+            <div style={styles.iconBox}>
+              <FaVideo /> {!camOn && <FaSlash style={styles.slashIcon} />}
+            </div>
           </button>
         </div>
-      </header>
 
-      {errorMsg ? <div style={styles.error}>⚠️ {errorMsg}</div> : null}
-
-      <main style={styles.grid}>
-        <section style={styles.tile}>
-          <div style={styles.label}>{remote?.user_name || remote?.userId || "Remote"}</div>
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            style={styles.video}
-          />
-          {!remote ? <div style={styles.hint}>Waiting for the other user…</div> : null}
-        </section>
-
-        <section style={styles.tile}>
-          <div style={styles.label}>{local?.user_name || "You"}</div>
-          <video
-            ref={localVideoRef}
-            autoPlay
-            muted
-            playsInline
-            style={styles.video}
-          />
-          {!local ? <div style={styles.hint}>Join to start your camera…</div> : null}
-        </section>
+        {errorMsg && <div style={styles.bottomError}>{errorMsg}</div>}
       </main>
 
-      
-      <audio ref={remoteAudioRef} autoPlay playsInline />
+      <audio ref={remoteAudioRef} autoPlay />
     </div>
   );
 }
 
+// --- STYLES ---
 const styles = {
   page: {
-    minHeight: "100vh",
+    height: "100vh",
+    width: "100vw",
     background: "#0b0f19",
     color: "white",
-    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
+    overflow: "hidden",
   },
-  header: {
-    padding: "16px 18px",
-    borderBottom: "1px solid rgba(255,255,255,0.1)",
+  videoContainer: { height: "100%", width: "100%", position: "relative" },
+  mainVideo: { width: "100%", height: "100%", objectFit: "cover" },
+  smallVideoWrapper: {
+    position: "absolute",
+    width: "clamp(120px,22vw,160px)",
+    aspectRatio: "4/3",
+    border: "2px solid white",
+    borderRadius: 8,
+    cursor: "grab",
+    zIndex: 10,
+    background: "black",
+  },
+  smallVideo: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    borderRadius: 6,
+  },
+  smallLabel: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    background: "rgba(0,0,0,0.35)",
+    padding: "2px 6px",
+    borderRadius: 999,
+    fontSize: 11,
+  },
+  controls: {
+    position: "absolute",
+    bottom: 20,
+    left: "50%",
+    transform: "translateX(-50%)",
     display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    alignItems: "center",
+    gap: 16,
+    zIndex: 20,
   },
-  title: { fontSize: 18, fontWeight: 700 },
-  subTitle: { fontSize: 12, opacity: 0.8, marginTop: 2 },
-  actions: { display: "flex", gap: 10, flexWrap: "wrap" },
-  btn: {
-    background: "rgba(255,255,255,0.12)",
+  controlBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: "50%",
+    border: "none",
+    background: "rgba(0,0,0,0.6)",
     color: "white",
-    border: "1px solid rgba(255,255,255,0.18)",
-    borderRadius: 10,
-    padding: "10px 12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     cursor: "pointer",
   },
-  btnDisabled: { opacity: 0.5, cursor: "not-allowed" },
-  error: {
-    margin: "12px 18px 0",
-    padding: 12,
-    borderRadius: 12,
-    background: "rgba(255,80,80,0.15)",
-    border: "1px solid rgba(255,80,80,0.25)",
-  },
-  grid: {
-    padding: 18,
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 18,
-  },
-  tile: {
+  iconBox: {
     position: "relative",
-    borderRadius: 16,
-    overflow: "hidden",
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    minHeight: 360,
+    width: 26,
+    height: 26,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  label: {
+  slashIcon: {
     position: "absolute",
-    top: 12,
-    left: 12,
-    padding: "6px 10px",
-    borderRadius: 999,
-    background: "rgba(0,0,0,0.35)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    fontSize: 12,
-    zIndex: 2,
+    fontSize: 28,
+    color: "white",
+    pointerEvents: "none",
   },
-  video: { width: "100%", height: "100%", objectFit: "cover" },
-  hint: {
+  bottomError: {
     position: "absolute",
-    bottom: 12,
-    left: 12,
-    right: 12,
-    fontSize: 13,
-    opacity: 0.85,
-    background: "rgba(0,0,0,0.35)",
-    padding: 10,
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
+    bottom: 100,
+    left: "50%",
+    transform: "translateX(-50%)",
+    padding: "10px 16px",
+    background: "rgba(255,80,80,0.85)",
+    color: "white",
+    borderRadius: 8,
+    zIndex: 30,
+    maxWidth: "90%",
+    textAlign: "center",
+    fontSize: 14,
   },
-  footer: {
-    padding: "0 18px 18px",
-    opacity: 0.7,
-  },
-  small: { fontSize: 12 },
 };
