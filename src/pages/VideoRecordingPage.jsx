@@ -468,9 +468,15 @@ export default function VideoRecordingPage({ userName }) {
 
             setUploadedVideoUrl(downloadUrl);
             // redirect back to Flutter web route
-            const flutterReturnUrl = `http://localhost:5000/#/video-return?videoUrl=${encodeURIComponent(downloadUrl)}`;
-            window.location.href = flutterReturnUrl;
-            
+            // send to Flutter
+            window.parent.postMessage(
+                {
+                    type: "VIDEO_UPLOAD_SUCCESS",
+                    videoUrl: downloadUrl,
+                },
+                "*"
+            );
+
             console.log("Uploaded video URL:", downloadUrl);
             alert("Upload successful");
 
