@@ -1,30 +1,56 @@
 import React from 'react';
-// import AgoraRTC, { AgoraRTCProvider } from 'agora-rtc-react';
-// import Call from "./components/Call";
 import VideoCallPage from "./pages/VideoCallPage";
+import VideoRecordingPage from "./pages/VideoRecordingPage";
 
-// const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+// Optional reusable error component
+const Error = ({ message }) => (
+  <div style={{ color: "black", padding: 20 }}>
+    ❌ {message}
+  </div>
+);
+
 function App() {
   const params = new URLSearchParams(window.location.search);
+
   const room = params.get("room");
   const token = params.get("token");
   const userName = params.get("userName");
-
+  const pageType = params.get("pageType");
 
   const roomUrl = room
     ? `https://skpnation.daily.co/${room}`
     : null;
 
-  return (
-    <>
-      {roomUrl ? (
-        <VideoCallPage roomUrl={roomUrl} token={token} userName={userName}  />
+  // 👇 Decide what to render
+  let content;
+
+  switch (pageType) {
+    case "video-call":
+      content = roomUrl ? (
+        <VideoCallPage
+          roomUrl={roomUrl}
+          token={token}
+          userName={userName}
+        />
       ) : (
-        <div style={{ color: "black", padding: 20 }}>
-          ❌ No room provided in URL
-        </div>
-      )}
-    </>
-  );
+        <Error message="No room provided" />
+      );
+      break;
+
+    case "video-recording":
+      content = (
+        <VideoRecordingPage
+          userName={userName}
+        />
+      );
+      break;
+
+    default:
+      content = <Error message="Invalid pageType" />;
+  }
+
+  // 👇 Return the chosen content
+  return <>{content}</>;
 }
+
 export default App;
