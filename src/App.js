@@ -1,6 +1,7 @@
 import React from 'react';
 import VideoCallPage from "./pages/VideoCallPage";
 import VideoRecordingPage from "./pages/VideoRecordingPage";
+import IntroduceYourselfPage from "./pages/IntroduceYourselfPage";
 
 // Optional reusable error component
 const Error = ({ message }) => (
@@ -39,11 +40,18 @@ function App() {
 
     case "video-recording":
       content = (
-        <VideoRecordingPage
+        <IntroduceYourselfPage
           userName={userName}
         />
       );
       break;
+
+    case "record-video":
+      content = (
+        <VideoRecordingPage userName={userName} />
+      );
+      break;
+
 
     default:
       content = <Error message="Invalid pageType" />;
