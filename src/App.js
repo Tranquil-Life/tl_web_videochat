@@ -2,6 +2,8 @@ import React from 'react';
 import VideoCallPage from "./pages/VideoCallPage";
 import VideoRecordingPage from "./pages/VideoRecordingPage";
 import IntroduceYourselfPage from "./pages/IntroduceYourselfPage";
+import DocusignPage from "./pages/DocuSignPage";
+
 
 // Optional reusable error component
 const Error = ({ message }) => (
@@ -17,7 +19,9 @@ function App() {
   const token = params.get("token");
   const userName = params.get("userName");
   const pageType = params.get("pageType");
-
+  const signingUrl = params.get("signingUrl");
+  const videoUrl = params.get("videoUrl");
+  const photoUrl = params.get("photoUrl");
   const roomUrl = room
     ? `https://skpnation.daily.co/${room}`
     : null;
@@ -52,6 +56,18 @@ function App() {
       );
       break;
 
+    case "docusign":
+      content = (
+        <DocusignPage
+          signingUrl={signingUrl}
+          videoUrl={videoUrl}
+          photoUrl={photoUrl}
+          onSigningComplete={() => {
+            console.log("Signing complete");
+          }}
+        />
+      );
+      break;
 
     default:
       content = <Error message="Invalid pageType" />;
