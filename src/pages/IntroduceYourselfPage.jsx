@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
+import { uploadProfileImage } from "../services/MediaUploadService";
 
 export default function IntroduceYourselfPage() {
     const fileInputRef = useRef(null);
@@ -7,6 +8,28 @@ export default function IntroduceYourselfPage() {
     const [introVideo, setIntroVideo] = useState(""); // uploaded/returned video url
     const [profilePic, setProfilePic] = useState("");
     const [showVideoDialog, setShowVideoDialog] = useState(false);
+
+    const [selectedImageFile, setSelectedImageFile] = useState(null);
+    const [showUploadDialog, setShowUploadDialog] = useState(false);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [imageUploadProgress, setImageUploadProgress] = useState(0);
+
+    const [isSigningUp, setIsSigningUp] = useState(false);
+
+    useEffect(() => {
+        const style = document.createElement("style");
+        style.innerHTML = `
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    `;
+        document.head.appendChild(style);
+
+        return () => {
+            document.head.removeChild(style);
+        };
+    }, []);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -36,17 +59,67 @@ export default function IntroduceYourselfPage() {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        const localUrl = URL.createObjectURL(file);
-        setProfilePic(localUrl);
+        setSelectedOption("picture");
+        setSelectedImageFile(file);
+        setShowUploadDialog(true);
 
-        // if uploading immediately, replace this with your upload logic
-        // then store remote URL instead of localUrl
+        // allow selecting same file again later
+        event.target.value = "";
+    };
+
+    const handleUploadProfilePic = async () => {
+        if (!selectedImageFile) {
+            alert("No image selected");
+            return;
+        }
+
+        try {
+            setIsUploadingImage(true);
+            setImageUploadProgress(0);
+
+            const userId = userName || "anonymous";
+
+            const result = await uploadProfileImage({
+                imageFile: selectedImageFile,
+                userId,
+                previousUrl: profilePic || null,
+                onProgress: (progressValue) => {
+                    setImageUploadProgress(progressValue);
+                },
+            });
+
+            if (!result) {
+                alert("Image upload failed");
+                return;
+            }
+
+            const { downloadUrl } = result;
+
+            setProfilePic(downloadUrl);
+            setShowUploadDialog(false);
+            setSelectedImageFile(null);
+
+            alert("Profile picture uploaded successfully");
+        } catch (error) {
+            console.error("Profile picture upload failed:", error);
+            alert("Image upload failed");
+        } finally {
+            setIsUploadingImage(false);
+        }
+    };
+
+    const handleCancelProfilePicUpload = () => {
+        setShowUploadDialog(false);
+        setSelectedImageFile(null);
+        setImageUploadProgress(0);
     };
 
     const handleCompleteSignup = async () => {
         if (!introVideo && !profilePic) return;
 
         try {
+            setIsSigningUp(true); // START LOADING
+
             const email = "abc@gmail.com";
             const name = userName || "anonymous";
 
@@ -73,6 +146,7 @@ export default function IntroduceYourselfPage() {
 
             if (!signingUrl) {
                 alert("No signing URL returned");
+                setIsSigningUp(false);
                 return;
             }
 
@@ -81,10 +155,12 @@ export default function IntroduceYourselfPage() {
                 `&signingUrl=${encodeURIComponent(signingUrl)}` +
                 `&videoUrl=${encodeURIComponent(introVideo || "")}` +
                 `&photoUrl=${encodeURIComponent(profilePic || "")}`;
-                
+
         } catch (error) {
             console.error("Error getting signing URL:", error);
             alert("Unable to start document signing.");
+            setIsSigningUp(false); // STOP ON ERROR
+
         }
     };
 
@@ -251,20 +327,42 @@ export default function IntroduceYourselfPage() {
 
                         <button
                             onClick={handleCompleteSignup}
-                            disabled={!introVideo && !profilePic}
+                            disabled={(!introVideo && !profilePic) || isSigningUp}
                             style={{
                                 width: "100%",
                                 height: 52,
                                 borderRadius: 12,
                                 border: "1px solid #9ccc9c",
-                                background: !introVideo && !profilePic ? "#d9d9d9" : "#2e7d32",
+                                background:
+                                    (!introVideo && !profilePic) || isSigningUp
+                                        ? "#d9d9d9"
+                                        : "#2e7d32",
                                 color: "#fff",
                                 fontSize: 16,
                                 fontWeight: 500,
-                                cursor: !introVideo && !profilePic ? "not-allowed" : "pointer",
+                                cursor:
+                                    (!introVideo && !profilePic) || isSigningUp
+                                        ? "not-allowed"
+                                        : "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
                             }}
                         >
-                            Complete sign up
+                            {isSigningUp ? (
+                                <div
+                                    style={{
+                                        width: 20,
+                                        height: 20,
+                                        border: "3px solid rgba(255,255,255,0.4)",
+                                        borderTop: "3px solid #fff",
+                                        borderRadius: "50%",
+                                        animation: "spin 1s linear infinite",
+                                    }}
+                                />
+                            ) : (
+                                "Complete sign up"
+                            )}
                         </button>
 
                         <div
@@ -295,6 +393,143 @@ export default function IntroduceYourselfPage() {
                     videoUrl={introVideo}
                     onClose={() => setShowVideoDialog(false)}
                 />
+            )}
+
+            {showUploadDialog && (
+                <div
+                    onClick={handleCancelProfilePicUpload}
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(0,0,0,0.35)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 20,
+                        zIndex: 9999,
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: "100%",
+                            maxWidth: 420,
+                            borderRadius: 20,
+                            background: "#fff",
+                            padding: 24,
+                            boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: 18,
+                                fontWeight: 600,
+                                color: "#333",
+                            }}
+                        >
+                            Upload profile picture
+                        </div>
+
+                        <p
+                            style={{
+                                marginTop: 10,
+                                fontSize: 14,
+                                color: "#666",
+                            }}
+                        >
+                            Do you want to upload this picture?
+                        </p>
+
+                        {selectedImageFile && (
+                            <img
+                                src={URL.createObjectURL(selectedImageFile)}
+                                alt="Selected profile"
+                                style={{
+                                    width: 110,
+                                    height: 110,
+                                    objectFit: "cover",
+                                    borderRadius: "50%",
+                                    display: "block",
+                                    margin: "18px auto 0",
+                                    border: "1px solid #d6e4d6",
+                                }}
+                            />
+                        )}
+
+                        {isUploadingImage && (
+                            <div style={{ marginTop: 18 }}>
+                                <div
+                                    style={{
+                                        height: 8,
+                                        background: "#e6eee6",
+                                        borderRadius: 999,
+                                        overflow: "hidden",
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: `${imageUploadProgress}%`,
+                                            height: "100%",
+                                            background: "#2e7d32",
+                                            transition: "width 0.2s ease",
+                                        }}
+                                    />
+                                </div>
+
+                                <div
+                                    style={{
+                                        marginTop: 8,
+                                        fontSize: 12,
+                                        color: "#666",
+                                        textAlign: "center",
+                                    }}
+                                >
+                                    Uploading... {Math.round(imageUploadProgress)}%
+                                </div>
+                            </div>
+                        )}
+
+                        <div
+                            style={{
+                                display: "flex",
+                                gap: 12,
+                                marginTop: 24,
+                            }}
+                        >
+                            <button
+                                onClick={handleCancelProfilePicUpload}
+                                disabled={isUploadingImage}
+                                style={{
+                                    flex: 1,
+                                    height: 46,
+                                    borderRadius: 10,
+                                    border: "1px solid #d0d0d0",
+                                    background: "#fff",
+                                    color: "#333",
+                                    cursor: isUploadingImage ? "not-allowed" : "pointer",
+                                }}
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                onClick={handleUploadProfilePic}
+                                disabled={isUploadingImage}
+                                style={{
+                                    flex: 1,
+                                    height: 46,
+                                    borderRadius: 10,
+                                    border: "none",
+                                    background: "#2e7d32",
+                                    color: "#fff",
+                                    cursor: isUploadingImage ? "not-allowed" : "pointer",
+                                }}
+                            >
+                                {isUploadingImage ? "Uploading..." : "Upload"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

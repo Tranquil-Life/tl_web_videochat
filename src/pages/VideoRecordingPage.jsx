@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { uploadIntroVideoRecording } from "../services/videoUploadService";
+import { uploadIntroVideoRecording } from "../services/MediaUploadService";
 
 const RECORDING_DURATION_MS = 20_000; // 20 seconds
 
