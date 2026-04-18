@@ -31,6 +31,7 @@ export default function DocusignPage({
         }
 
         const payload = {
+          type: "SIGNING_COMPLETE",   // 🔥 THIS IS THE MISSING PIECE
           videoUrl: videoUrl || "",
           photoUrl: photoUrl || "",
         };
@@ -70,7 +71,6 @@ export default function DocusignPage({
         if (typeof onSigningComplete === "function") {
           onSigningComplete();
         }
-
 
 
         setTimeout(() => {
