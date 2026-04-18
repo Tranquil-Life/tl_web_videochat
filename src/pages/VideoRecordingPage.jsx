@@ -484,7 +484,7 @@ export default function VideoRecordingPage({ userName }) {
 
             // ✅ redirect back to introduce page with video
             window.location.href =
-                `${window.location.origin}?pageType=video-recording&videoUrl=${encodeURIComponent(downloadUrl)}`;
+                `${window.location.origin}?pageType=introduce-yourself&videoUrl=${encodeURIComponent(downloadUrl)}`;
 
         } catch (error) {
             console.error("Upload failed:", error);

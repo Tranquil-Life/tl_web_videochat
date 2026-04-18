@@ -42,7 +42,7 @@ function App() {
       );
       break;
 
-    case "video-recording":
+    case "introduce-yourself":
       content = (
         <IntroduceYourselfPage
           userName={userName}
