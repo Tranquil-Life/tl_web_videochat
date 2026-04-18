@@ -467,18 +467,24 @@ export default function VideoRecordingPage({ userName }) {
             const { downloadUrl } = result;
 
             setUploadedVideoUrl(downloadUrl);
+
+
             // redirect back to Flutter web route
             // send to Flutter
-            window.parent.postMessage(
-                {
-                    type: "VIDEO_UPLOAD_SUCCESS",
-                    videoUrl: downloadUrl,
-                },
-                "*"
-            );
+            // window.parent.postMessage(
+            //     {
+            //         type: "VIDEO_UPLOAD_SUCCESS",
+            //         videoUrl: downloadUrl,
+            //     },
+            //     "*"
+            // );
 
             console.log("Uploaded video URL:", downloadUrl);
             alert("Upload successful");
+
+            // ✅ redirect back to introduce page with video
+            window.location.href =
+                `${window.location.origin}?pageType=introduce-yourself&videoUrl=${encodeURIComponent(downloadUrl)}`;
 
         } catch (error) {
             console.error("Upload failed:", error);
