@@ -31,6 +31,11 @@ export default function VideoRecordingPage({ userName }) {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadedVideoUrl, setUploadedVideoUrl] = useState("");
+    const finalUserName =
+        userName ||
+        new URLSearchParams(window.location.search).get("userName") ||
+        localStorage.getItem("userName") ||
+        "";
 
     const uploadStateText = useMemo(() => {
         return "Save video and upload";
@@ -48,6 +53,12 @@ export default function VideoRecordingPage({ userName }) {
     useEffect(() => {
         isStoppingRecordingRef.current = isStoppingRecording;
     }, [isStoppingRecording]);
+
+    useEffect(() => {
+        if (finalUserName) {
+            localStorage.setItem("userName", finalUserName);
+        }
+    }, [finalUserName]);
 
     useEffect(() => {
         let mounted = true;
@@ -484,7 +495,9 @@ export default function VideoRecordingPage({ userName }) {
 
             // ✅ redirect back to introduce page with video
             window.location.href =
-                `${window.location.origin}?pageType=introduce-yourself&videoUrl=${encodeURIComponent(downloadUrl)}`;
+                `${window.location.origin}?pageType=introduce-yourself` +
+                `&videoUrl=${encodeURIComponent(downloadUrl)}` +
+                `&userName=${encodeURIComponent(finalUserName)}`;
 
         } catch (error) {
             console.error("Upload failed:", error);
