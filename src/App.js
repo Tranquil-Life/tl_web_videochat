@@ -62,6 +62,7 @@ function App() {
           signingUrl={signingUrl}
           videoUrl={videoUrl}
           photoUrl={photoUrl}
+          userName={userName}
           onSigningComplete={() => {
             console.log("Signing complete");
           }}
