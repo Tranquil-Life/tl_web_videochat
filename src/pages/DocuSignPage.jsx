@@ -4,6 +4,7 @@ export default function DocusignPage({
   signingUrl,
   videoUrl,
   photoUrl,
+  userName,
   onSigningComplete,
 }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -15,8 +16,8 @@ export default function DocusignPage({
       signingUrl,
       videoUrl,
       photoUrl,
+      userName,
     });
-
 
     const handleMessage = (event) => {
       if (event.data === "SIGNING_COMPLETE") {
@@ -46,7 +47,7 @@ export default function DocusignPage({
     return () => {
       window.removeEventListener("message", handleMessage);
     };
-  }, [onSigningComplete, signingUrl, videoUrl, photoUrl]);
+  }, [onSigningComplete, signingUrl, videoUrl, photoUrl, userName]);
 
   const handleIframeLoad = () => {
     console.log("Iframe successfully loaded");
