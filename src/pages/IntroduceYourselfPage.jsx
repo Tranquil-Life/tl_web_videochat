@@ -1,7 +1,12 @@
 import React, { useRef, useEffect, useState } from "react";
 import { uploadProfileImage } from "../services/MediaUploadService";
 
-export default function IntroduceYourselfPage() {
+export default function IntroduceYourselfPage({ userName }) {
+    const resolvedUserName =
+        userName ||
+        new URLSearchParams(window.location.search).get("userName") ||
+        "anonymous";
+
     const fileInputRef = useRef(null);
 
     const [selectedOption, setSelectedOption] = useState("");
@@ -40,14 +45,11 @@ export default function IntroduceYourselfPage() {
         }
     }, []);
 
-    // replace with your real user data source
-    const userName = "Ayomide Ajayi";
-
     const handleVideoRecordingClick = () => {
         const baseUrl = window.location.origin;
 
         window.location.href =
-            `${baseUrl}?pageType=record-video&userName=${encodeURIComponent(userName)}`;
+            `${baseUrl}?pageType=record-video&userName=${encodeURIComponent(resolvedUserName)}`;
     };
 
     const handleProfilePictureClick = () => {
@@ -77,7 +79,7 @@ export default function IntroduceYourselfPage() {
             setIsUploadingImage(true);
             setImageUploadProgress(0);
 
-            const userId = userName || "anonymous";
+            const userId = resolvedUserName;
 
             const result = await uploadProfileImage({
                 imageFile: selectedImageFile,
@@ -121,7 +123,7 @@ export default function IntroduceYourselfPage() {
             setIsSigningUp(true); // START LOADING
 
             const email = "abc@gmail.com";
-            const name = userName || "anonymous";
+            const name = resolvedUserName;
 
             const response = await fetch(
                 `https://tranquil-api.herokuapp.com/api/consultant/agreements/{applicationId}/signing-url`,
