@@ -3,7 +3,7 @@ import { uploadIntroVideoRecording } from "../services/MediaUploadService";
 
 const RECORDING_DURATION_MS = 20_000; // 20 seconds
 
-export default function VideoRecordingPage({ userName }) {
+export default function VideoRecordingPage({ userName, isForProfileUpdate = false }) {
     const videoPreviewRef = useRef(null);
     const playbackRef = useRef(null);
     const mediaRecorderRef = useRef(null);
@@ -36,6 +36,7 @@ export default function VideoRecordingPage({ userName }) {
         new URLSearchParams(window.location.search).get("userName") ||
         localStorage.getItem("userName") ||
         "";
+    const isProfileUpdateFlow = isForProfileUpdate || new URLSearchParams(window.location.search).get("isForProfileUpdate") === "true";
 
     const uploadStateText = useMemo(() => {
         return "Save video and upload";
@@ -478,26 +479,27 @@ export default function VideoRecordingPage({ userName }) {
             const { downloadUrl } = result;
 
             setUploadedVideoUrl(downloadUrl);
-
-
-            // redirect back to Flutter web route
-            // send to Flutter
-            // window.parent.postMessage(
-            //     {
-            //         type: "VIDEO_UPLOAD_SUCCESS",
-            //         videoUrl: downloadUrl,
-            //     },
-            //     "*"
-            // );
-
-            console.log("Uploaded video URL:", downloadUrl);
             alert("Upload successful");
 
-            // ✅ redirect back to introduce page with video
-            window.location.href =
-                `${window.location.origin}?pageType=introduce-yourself` +
-                `&videoUrl=${encodeURIComponent(downloadUrl)}` +
-                `&userName=${encodeURIComponent(finalUserName)}`;
+            if (isProfileUpdateFlow) {
+                const payload = {
+                    type: "VIDEO_UPLOAD_SUCCESS",
+                    videoUrl: downloadUrl || "",
+                };
+
+                console.log("Posting to Flutter parent:", payload);
+                window.parent.postMessage(payload, "*");
+            } else {
+                console.log("Uploaded video URL:", downloadUrl);
+
+                //redirect back to introduce page with video
+                window.location.href =
+                    `${window.location.origin}?pageType=introduce-yourself` +
+                    `&videoUrl=${encodeURIComponent(downloadUrl)}` +
+                    `&userName=${encodeURIComponent(finalUserName)}`;
+            }
+
+
 
         } catch (error) {
             console.error("Upload failed:", error);
