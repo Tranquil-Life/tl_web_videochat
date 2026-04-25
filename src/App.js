@@ -19,6 +19,7 @@ function App() {
   const token = params.get("token");
   const userName = params.get("userName");
   const pageType = params.get("pageType");
+  const isForProfileUpdate = pageType === "update-video-intro";
   const signingUrl = params.get("signingUrl");
   const videoUrl = params.get("videoUrl");
   const photoUrl = params.get("photoUrl");
@@ -67,6 +68,12 @@ function App() {
             console.log("Signing complete");
           }}
         />
+      );
+      break;
+
+    case "update-video-intro":
+      content = (
+        <VideoRecordingPage userName={userName} isForProfileUpdate={isForProfileUpdate} />
       );
       break;
 
